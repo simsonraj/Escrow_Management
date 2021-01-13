@@ -6,12 +6,17 @@ const init = async () => {
     let web3 = new Web3('ws://localhost:7545');
     const networkId = await web3.eth.net.getId();
     console.log(networkId)
-    const myContract = new web3.eth.Contract(
-      MyContract.abi,
-      MyContract.networks[networkId].address
-    );
     var accounts=await web3.eth.getAccounts();
     console.log(accounts)
+    const myContract = new web3.eth.Contract(
+      MyContract.abi,
+      MyContract.networks[networkId].address,
+      {from:accounts[0],gas:"4712388"}
+    );
+   
+    web3.eth.getBlock("latest").then(results=>{
+        //console.log(results)
+    })
     var lineReader = require('readline').createInterface({
         input: require('fs').createReadStream('inputs.txt')
       });

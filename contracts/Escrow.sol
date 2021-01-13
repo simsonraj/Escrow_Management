@@ -11,11 +11,14 @@ contract Escrow {
         Status status;
     }
 
-    int256 public escrowTotal;
+    int256 escrowTotal;
     mapping(bytes32 => Item) inventory;
     mapping(address => int256) balances;
     mapping(address => int256) public escrowBalances;
     mapping(address => Order[]) orders;
+    mapping(address => bool) buyers;
+    mapping(address => bool) sellers;
+    address admn;
     enum Status {
         PAYMENT_PENDING,
         ORDER_PROCESSING,
@@ -25,9 +28,37 @@ contract Escrow {
     }
     enum Action {DEDUCT, CREDIT}
 
-    constructor() public {}
+    // constructor() public {}
+ 
 
-    function credit(address buyer, int256 amount) public payable {
+    constructor() public{ 
+        admn = msg.sender;
+    }
+
+     modifier onlyBuyer() {
+        require(msg.sender == admn || buyers[msg.sender]==true, "Only buyer can call this method");
+        _;
+    }
+
+    modifier onlySeller() {
+        require(msg.sender == admn || sellers[msg.sender]==true, "Only seller can call this method");
+        _;
+    }
+
+    modifier onlyAdmin() {
+        require(msg.sender == admn, "Only Admin can call this method");
+        _;
+    }
+
+    function addBuyer(address buyer)  onlyAdmin external{
+        buyers[buyer] = true;
+    }
+    
+    function addSeller(address seller)  onlyAdmin external{
+        sellers[seller] = true;
+    }
+
+    function credit(address buyer, int256 amount)  onlyBuyer external{
         balances[buyer] += amount;
     }
 
@@ -39,16 +70,12 @@ contract Escrow {
         address seller,
         bytes32 item,
         int256 amount
-    ) public {
+    ) onlySeller external {
         Item memory stock = Item(item, seller, amount);
         inventory[item] = stock;
     }
 
-    function getOfferPrice(bytes32 item) public view returns (int256 amount) {
-        return inventory[item].rate;
-    }
-
-    function order(address buyer, bytes32 item) public {
+    function order(address buyer, bytes32 item) onlyBuyer external {
         if (escrowBalances[buyer] >= inventory[item].rate) {
             orders[buyer].push(Order(inventory[item], Status.ORDER_PROCESSING));
             //setEscrowBalance(buyer,inventory[item].rate,Action.DEDUCT);
@@ -58,7 +85,7 @@ contract Escrow {
         }
     }
 
-    function deposit(address buyer, int256 amount) public {
+    function deposit(address buyer, int256 amount) onlyBuyer external {
         if (balances[buyer] > 0 && getBalance(buyer) >= amount) {
             balances[buyer] -= amount;
             setEscrowBalance(buyer, amount, Action.CREDIT);
@@ -68,7 +95,7 @@ contract Escrow {
         }
     }
 
-    function processOrder(address buyer, Status status) public {
+    function processOrder(address buyer, Status status) private{
         Order[] memory orderList = orders[buyer];
         for (uint256 i = 0; i < orderList.length; i++) {
             if (status == Status.ORDER_PROCESSING) {
@@ -79,7 +106,7 @@ contract Escrow {
         }
     }
 
-    function complete(address buyer, bytes32 item) public {
+    function complete(address buyer, bytes32 item) onlyBuyer external {
         // change order status to Complete
         Order[] memory orderList = orders[buyer];
         for (uint256 i = 0; i < orderList.length; i++) {
@@ -101,7 +128,7 @@ contract Escrow {
         }
     }
 
-    function complain(address buyer, bytes32 item) public {
+    function complain(address buyer, bytes32 item) onlyBuyer external {
         Order[] memory orderList = orders[buyer];
         for (uint256 i = 0; i < orderList.length; i++) {
             if (orderList[i].item.name == item) {
@@ -128,7 +155,7 @@ contract Escrow {
         address party,
         int256 amount,
         Action action
-    ) public {
+    ) private {
         if (action == Action.DEDUCT) {
             if (
                 escrowTotal - amount >= 0 && escrowBalances[party] - amount >= 0
@@ -144,7 +171,7 @@ contract Escrow {
         }
     }
 
-    function getEscrowBalanceTotal() public view returns (int256 amount) {
+    function getEscrowBalanceTotal() public returns (int256 amount) {
         return escrowTotal;
     }
 }
